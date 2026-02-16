@@ -6,7 +6,8 @@ Wants=openclaw-gateway.service
 [Service]
 Type=simple
 User=tars
-Environment=DISPLAY=:0
+Environment=QT_QPA_PLATFORM=wayland
+Environment=WAYLAND_DISPLAY=wayland-0
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 ExecStartPre=/bin/sleep 5
 ExecStart=/usr/bin/python3 /home/tars/openclaw/extensions/tars-channel/display/tars_display.py
