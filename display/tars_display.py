@@ -371,6 +371,11 @@ class TarsDisplay(QMainWindow):
         
     def append_message(self, text):
         """Append a message to the display"""
+        # If we're in listening/processing state and receiving a message,
+        # it's likely a response from OpenClaw - switch to normal view
+        if self.state != self.STATE_NORMAL and not text.startswith(">"):
+            self.set_state(self.STATE_NORMAL)
+        
         self.text_display.append(text)
         
         # Auto-scroll to bottom
