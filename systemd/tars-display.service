@@ -1,0 +1,17 @@
+[Unit]
+Description=TARS Display Interface
+After=graphical.target openclaw-gateway.service
+Wants=openclaw-gateway.service
+
+[Service]
+Type=simple
+User=tars
+Environment=DISPLAY=:0
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/python3 /home/tars/openclaw/extensions/tars-channel/display/tars_display.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

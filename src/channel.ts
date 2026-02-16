@@ -4,8 +4,12 @@ import {
   DEFAULT_ACCOUNT_ID,
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
+import { TarsServer } from "./server.js";
 
 const meta = getChatChannelMeta("tars-channel");
+
+// Global server instance
+let tarsServer: TarsServer | null = null;
 
 // Minimal config schema for now
 const TarsChannelConfigSchema = {
@@ -56,8 +60,9 @@ export const tarsChannelPlugin: ChannelPlugin = {
     chunker: null,
     textChunkLimit: 4000,
     sendText: async ({ to, text }) => {
-      // TODO: Implement actual message sending
-      console.log(`[TARS-CHANNEL] Sending to ${to}: ${text}`);
+      if (tarsServer) {
+        tarsServer.sendMessage(text);
+      }
       return { channel: "tars-channel", messageId: `tars-channel-${Date.now()}` };
     },
   },
@@ -91,12 +96,33 @@ export const tarsChannelPlugin: ChannelPlugin = {
     startAccount: async (ctx) => {
       ctx.log?.info(`[tars-channel] Starting TARS channel`);
       
-      // TODO: Implement actual channel server
-      // This is where we'll start the WebSocket/HTTP server
+      // Create and start Unix socket server
+      tarsServer = new TarsServer({
+        socketPath: "/tmp/tars-channel.sock",
+        logger: {
+          info: (msg) => ctx.log?.info?.(msg),
+          warn: (msg) => ctx.log?.warn?.(msg),
+          error: (msg) => ctx.log?.error?.(msg),
+        },
+      });
       
-      // For now, just log that we're "running"
-      return () => {
+      try {
+        await tarsServer.start();
+        ctx.log?.info(`[tars-channel] Server started successfully`);
+      } catch (err) {
+        ctx.log?.error?.(
+          `[tars-channel] Failed to start server: ${err instanceof Error ? err.message : String(err)}`
+        );
+        throw err;
+      }
+      
+      // Return cleanup function
+      return async () => {
         ctx.log?.info(`[tars-channel] Stopping TARS channel`);
+        if (tarsServer) {
+          await tarsServer.stop();
+          tarsServer = null;
+        }
       };
     },
   },
