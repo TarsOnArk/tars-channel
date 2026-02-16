@@ -104,6 +104,21 @@ export const tarsChannelPlugin: ChannelPlugin = {
           warn: (msg) => ctx.log?.warn?.(msg),
           error: (msg) => ctx.log?.error?.(msg),
         },
+        onMessage: (text) => {
+          // Handle incoming messages from the display
+          ctx.log?.info?.(`[tars-channel] Processing input: ${text}`);
+          
+          // Inject message into OpenClaw's inbound system
+          ctx.runtime.inbound({
+            channel: "tars-channel",
+            accountId: DEFAULT_ACCOUNT_ID,
+            from: "tars-display",
+            chatType: "direct",
+            text: text,
+            messageId: `tars-${Date.now()}`,
+            timestamp: Date.now(),
+          });
+        },
       });
       
       try {

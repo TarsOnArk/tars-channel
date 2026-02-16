@@ -13,6 +13,7 @@ export interface TarsServerOptions {
     warn?: (msg: string) => void;
     error?: (msg: string) => void;
   };
+  onMessage?: (text: string) => void;
 }
 
 export class TarsServer {
@@ -20,9 +21,11 @@ export class TarsServer {
   private clients: Set<net.Socket> = new Set();
   private socketPath: string;
   private logger: TarsServerOptions["logger"];
+  private onMessage?: (text: string) => void;
 
   constructor(options: TarsServerOptions = {}) {
     this.socketPath = options.socketPath || "/tmp/tars-channel.sock";
+    this.onMessage = options.onMessage;
     this.logger = options.logger || {
       info: console.log,
       warn: console.warn,
@@ -41,6 +44,9 @@ export class TarsServer {
         this.logger?.info?.(`[tars-channel] Display connected`);
         this.clients.add(socket);
 
+        // Buffer for incomplete messages
+        let buffer = "";
+
         socket.on("error", (err) => {
           this.logger?.error?.(`[tars-channel] Socket error: ${err.message}`);
         });
@@ -50,14 +56,27 @@ export class TarsServer {
           this.clients.delete(socket);
         });
 
-        // Handle incoming messages from display (future use)
+        // Handle incoming messages from display
         socket.on("data", (data) => {
-          try {
-            const msg = JSON.parse(data.toString());
-            this.logger?.info?.(`[tars-channel] Received from display: ${JSON.stringify(msg)}`);
-            // TODO: Handle messages from display (e.g., button presses, voice input)
-          } catch (err) {
-            this.logger?.warn?.(`[tars-channel] Invalid message from display`);
+          buffer += data.toString();
+          
+          // Process complete messages (newline-delimited JSON)
+          while (buffer.includes("\n")) {
+            const idx = buffer.indexOf("\n");
+            const line = buffer.slice(0, idx);
+            buffer = buffer.slice(idx + 1);
+            
+            if (!line.trim()) continue;
+            
+            try {
+              const msg = JSON.parse(line);
+              if (msg.type === "input" && msg.text && this.onMessage) {
+                this.logger?.info?.(`[tars-channel] Received input from display`);
+                this.onMessage(msg.text);
+              }
+            } catch (err) {
+              this.logger?.warn?.(`[tars-channel] Invalid message from display: ${line}`);
+            }
           }
         });
       });
