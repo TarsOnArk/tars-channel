@@ -1,5 +1,11 @@
 """Audio configuration for TARS voice input."""
 
+import os
+
+# Get the directory of this config file
+_CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.path.dirname(_CONFIG_DIR)
+
 # Audio settings
 SAMPLE_RATE = 16000  # Hz - optimal for Whisper
 CHANNELS = 1  # Mono
@@ -8,7 +14,7 @@ FORMAT = 'int16'  # 16-bit PCM
 
 # Wake word settings
 WAKE_PHRASE = "hey tars"
-VOSK_MODEL_PATH = "models/vosk-model-small"
+VOSK_MODEL_PATH = os.path.join(_CONFIG_DIR, "models", "vosk-model-small")
 WAKE_WORD_THRESHOLD = 0.7  # Confidence threshold
 
 # Voice Activity Detection (VAD)
@@ -18,8 +24,8 @@ SPEECH_START_FRAMES = 5  # Frames of speech to confirm start
 
 # Whisper settings
 WHISPER_MODEL = "base.en"
-WHISPER_PATH = "../whisper.cpp/build/bin/whisper-cli"
-WHISPER_MODEL_PATH = "../whisper.cpp/models/ggml-base.en.bin"
+WHISPER_PATH = os.path.join(_PROJECT_ROOT, "whisper.cpp", "build", "bin", "whisper-cli")
+WHISPER_MODEL_PATH = os.path.join(_PROJECT_ROOT, "whisper.cpp", "models", "ggml-base.en.bin")
 
 # Visualizer settings
 VIS_FPS = 30  # Frames per second for visualizer
