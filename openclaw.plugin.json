@@ -1,6 +1,6 @@
 {
-  "id": "tui",
-  "channels": ["tui"],
+  "id": "tars-channel",
+  "channels": ["tars-channel"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

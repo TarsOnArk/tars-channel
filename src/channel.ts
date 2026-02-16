@@ -5,10 +5,10 @@ import {
   type ChannelPlugin,
 } from "openclaw/plugin-sdk";
 
-const meta = getChatChannelMeta("tui");
+const meta = getChatChannelMeta("tars-channel");
 
 // Minimal config schema for now
-const TuiConfigSchema = {
+const TarsChannelConfigSchema = {
   type: "object" as const,
   additionalProperties: false,
   properties: {
@@ -17,8 +17,8 @@ const TuiConfigSchema = {
   },
 };
 
-export const tuiPlugin: ChannelPlugin = {
-  id: "tui",
+export const tarsChannelPlugin: ChannelPlugin = {
+  id: "tars-channel",
   meta: {
     ...meta,
   },
@@ -33,14 +33,14 @@ export const tuiPlugin: ChannelPlugin = {
   streaming: {
     blockStreamingCoalesceDefaults: { minChars: 100, idleMs: 500 },
   },
-  reload: { configPrefixes: ["channels.tui"] },
-  configSchema: buildChannelConfigSchema(TuiConfigSchema),
+  reload: { configPrefixes: ["channels.tars-channel"] },
+  configSchema: buildChannelConfigSchema(TarsChannelConfigSchema),
   config: {
     listAccountIds: () => [DEFAULT_ACCOUNT_ID],
     resolveAccount: (cfg) => ({
       accountId: DEFAULT_ACCOUNT_ID,
-      enabled: cfg.channels?.tui?.enabled ?? false,
-      config: cfg.channels?.tui ?? {},
+      enabled: cfg.channels?.["tars-channel"]?.enabled ?? false,
+      config: cfg.channels?.["tars-channel"] ?? {},
       token: "",
     }),
     defaultAccountId: () => DEFAULT_ACCOUNT_ID,
@@ -57,8 +57,8 @@ export const tuiPlugin: ChannelPlugin = {
     textChunkLimit: 4000,
     sendText: async ({ to, text }) => {
       // TODO: Implement actual message sending
-      console.log(`[TUI] Sending to ${to}: ${text}`);
-      return { channel: "tui", messageId: `tui-${Date.now()}` };
+      console.log(`[TARS-CHANNEL] Sending to ${to}: ${text}`);
+      return { channel: "tars-channel", messageId: `tars-channel-${Date.now()}` };
     },
   },
   status: {
@@ -89,14 +89,14 @@ export const tuiPlugin: ChannelPlugin = {
   },
   gateway: {
     startAccount: async (ctx) => {
-      ctx.log?.info(`[tui] Starting Terminal UI channel`);
+      ctx.log?.info(`[tars-channel] Starting TARS channel`);
       
-      // TODO: Implement actual TUI server
-      // This is where we'll start the WebSocket/HTTP server for the terminal
+      // TODO: Implement actual channel server
+      // This is where we'll start the WebSocket/HTTP server
       
       // For now, just log that we're "running"
       return () => {
-        ctx.log?.info(`[tui] Stopping Terminal UI channel`);
+        ctx.log?.info(`[tars-channel] Stopping TARS channel`);
       };
     },
   },

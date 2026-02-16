@@ -1,7 +1,7 @@
 {
-  "name": "@openclaw/tui",
+  "name": "@openclaw/tars-channel",
   "version": "0.1.0",
-  "description": "OpenClaw Terminal UI channel plugin",
+  "description": "TARS custom channel plugin for OpenClaw",
   "type": "module",
   "devDependencies": {
     "openclaw": "workspace:*"
