@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TARS Display - Native PyQt5 interface for TARS embodiment
+TARS Display - Native PyQt5 interface for TARS embodiment with voice input
 """
 import sys
 import socket
@@ -10,10 +10,20 @@ import time
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QTextEdit, QLineEdit,
-    QVBoxLayout, QWidget, QLabel
+    QVBoxLayout, QWidget, QLabel, QStackedWidget
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor, QTextCursor
+
+# Import audio components
+try:
+    from wake_word import WakeWordDetector
+    from audio_input import AudioRecorder
+    from visualizer import AudioVisualizer
+    AUDIO_AVAILABLE = True
+except ImportError as e:
+    print(f"[TARS Display] Audio components not available: {e}")
+    AUDIO_AVAILABLE = False
 
 
 class SocketListener(QThread):
@@ -96,13 +106,20 @@ class SocketListener(QThread):
 
 
 class TarsDisplay(QMainWindow):
-    """Main TARS display window"""
+    """Main TARS display window with voice input"""
+    
+    # Display states
+    STATE_NORMAL = "normal"
+    STATE_LISTENING = "listening"
+    STATE_PROCESSING = "processing"
     
     def __init__(self, socket_path):
         super().__init__()
         self.socket_path = socket_path
+        self.state = self.STATE_NORMAL
         self.init_ui()
         self.init_socket()
+        self.init_audio()
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -111,33 +128,95 @@ class TarsDisplay(QMainWindow):
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.showFullScreen()
         
-        # Central widget
+        # Central widget with stacked views
         central = QWidget()
         self.setCentralWidget(central)
-        layout = QVBoxLayout(central)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(10)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(10)
+        
+        # Stacked widget to switch between normal and listening views
+        self.stack = QStackedWidget()
+        
+        # === NORMAL VIEW (conversation display) ===
+        normal_widget = QWidget()
+        normal_layout = QVBoxLayout(normal_widget)
+        normal_layout.setContentsMargins(0, 0, 0, 0)
+        normal_layout.setSpacing(10)
         
         # Text display area
         self.text_display = QTextEdit()
         self.text_display.setReadOnly(True)
-        self.text_display.setFrameStyle(0)  # No frame
+        self.text_display.setFrameStyle(0)
         
         # TARS aesthetic styling
         palette = QPalette()
-        palette.setColor(QPalette.Base, QColor("#0a0e14"))  # Dark background
-        palette.setColor(QPalette.Text, QColor("#00ff41"))  # Green text
+        palette.setColor(QPalette.Base, QColor("#0a0e14"))
+        palette.setColor(QPalette.Text, QColor("#00ff41"))
         self.text_display.setPalette(palette)
         
         # Monospace font
-        font = QFont("Courier New", 14)
-        font.setStyleHint(QFont.Monospace)
-        self.text_display.setFont(font)
+        self.font = QFont("Courier New", 14)
+        self.font.setStyleHint(QFont.Monospace)
+        self.text_display.setFont(self.font)
+        self.text_display.setCursor(Qt.BlankCursor)
+        
+        normal_layout.addWidget(self.text_display, stretch=1)
+        
+        # === LISTENING VIEW (audio visualizer) ===
+        listening_widget = QWidget()
+        listening_layout = QVBoxLayout(listening_widget)
+        listening_layout.setContentsMargins(20, 20, 20, 20)
+        listening_layout.setSpacing(20)
+        
+        # Title
+        self.listening_title = QLabel("🎤 LISTENING")
+        self.listening_title.setFont(QFont("Courier New", 24, QFont.Bold))
+        self.listening_title.setStyleSheet("color: #00ff41;")
+        self.listening_title.setAlignment(Qt.AlignCenter)
+        
+        # Separator
+        separator = QLabel("═" * 40)
+        separator.setFont(self.font)
+        separator.setStyleSheet("color: #00ff41;")
+        separator.setAlignment(Qt.AlignCenter)
+        
+        # Visualizer
+        if AUDIO_AVAILABLE:
+            self.visualizer = AudioVisualizer()
+            self.visualizer.setMinimumHeight(200)
+        else:
+            self.visualizer = QLabel("[Audio visualizer unavailable]")
+            self.visualizer.setAlignment(Qt.AlignCenter)
+            self.visualizer.setStyleSheet("color: #00ff41;")
+        
+        # Transcription display
+        self.transcription_label = QLabel("")
+        self.transcription_label.setFont(self.font)
+        self.transcription_label.setStyleSheet("color: #00ff41;")
+        self.transcription_label.setAlignment(Qt.AlignCenter)
+        self.transcription_label.setWordWrap(True)
+        
+        # Instruction
+        self.instruction_label = QLabel("💬 Speak now (pause to finish)")
+        self.instruction_label.setFont(self.font)
+        self.instruction_label.setStyleSheet("color: #00ff41;")
+        self.instruction_label.setAlignment(Qt.AlignCenter)
+        
+        listening_layout.addWidget(self.listening_title)
+        listening_layout.addWidget(separator)
+        listening_layout.addWidget(self.visualizer, stretch=1)
+        listening_layout.addWidget(self.transcription_label)
+        listening_layout.addWidget(self.instruction_label)
+        
+        # Add both views to stack
+        self.stack.addWidget(normal_widget)  # index 0
+        self.stack.addWidget(listening_widget)  # index 1
         
         # Input area
         self.input_line = QLineEdit()
         self.input_line.setFrame(False)
-        self.input_line.setFont(font)
+        self.input_line.setFont(self.font)
         self.input_line.setStyleSheet("""
             QLineEdit {
                 background-color: #0a0e14;
@@ -149,16 +228,20 @@ class TarsDisplay(QMainWindow):
         self.input_line.setPlaceholderText("Type message...")
         self.input_line.returnPressed.connect(self.send_input)
         
-        # Hide cursor over display area, show over input
-        self.text_display.setCursor(Qt.BlankCursor)
+        main_layout.addWidget(self.stack, stretch=1)
+        main_layout.addWidget(self.input_line)
         
-        layout.addWidget(self.text_display, stretch=1)
-        layout.addWidget(self.input_line)
+        # Start with normal view
+        self.stack.setCurrentIndex(0)
         
         # Display boot message
         self.append_message("=" * 60)
         self.append_message("TARS SYSTEMS ONLINE")
         self.append_message("Awaiting connection to OpenClaw...")
+        if AUDIO_AVAILABLE:
+            self.append_message("Voice input: Enabled (say 'Hey TARS')")
+        else:
+            self.append_message("Voice input: Disabled (dependencies missing)")
         self.append_message("=" * 60)
         self.append_message("")
         
@@ -168,6 +251,27 @@ class TarsDisplay(QMainWindow):
         self.socket_thread.message_received.connect(self.append_message)
         self.socket_thread.connected.connect(self.on_connection_changed)
         self.socket_thread.start()
+    
+    def init_audio(self):
+        """Initialize audio components"""
+        if not AUDIO_AVAILABLE:
+            return
+        
+        # Wake word detector
+        self.wake_detector = WakeWordDetector()
+        self.wake_detector.wake_word_detected.connect(self.on_wake_word)
+        self.wake_detector.error.connect(self.on_audio_error)
+        
+        # Audio recorder
+        self.audio_recorder = AudioRecorder()
+        self.audio_recorder.audio_level.connect(self.on_audio_level)
+        self.audio_recorder.transcription_ready.connect(self.on_transcription)
+        self.audio_recorder.error.connect(self.on_audio_error)
+        self.audio_recorder.recording_stopped.connect(self.on_recording_stopped)
+        
+        # Start wake word detection
+        self.wake_detector.start()
+        self.append_message("[TARS] Listening for 'Hey TARS'...")
     
     def on_connection_changed(self, connected):
         """Handle connection status changes"""
@@ -191,6 +295,79 @@ class TarsDisplay(QMainWindow):
                 self.input_line.clear()
             else:
                 self.append_message("[TARS] Failed to send message")
+    
+    def on_wake_word(self):
+        """Handle wake word detection"""
+        print("[TARS Display] Wake word detected!")
+        self.set_state(self.STATE_LISTENING)
+        
+        # Start recording
+        if hasattr(self, 'audio_recorder'):
+            self.audio_recorder.start()
+    
+    def on_audio_level(self, level):
+        """Handle audio level updates for visualizer"""
+        if AUDIO_AVAILABLE and hasattr(self, 'visualizer'):
+            self.visualizer.add_level(level)
+    
+    def on_transcription(self, text):
+        """Handle transcription ready"""
+        print(f"[TARS Display] Transcription: {text}")
+        self.set_state(self.STATE_PROCESSING)
+        
+        # Display transcribed text
+        self.append_message(f"> {text} [voice]")
+        
+        # Send to OpenClaw
+        if self.socket_thread.send_message(text):
+            pass
+        else:
+            self.append_message("[TARS] Failed to send message")
+        
+        # Return to normal view after a brief delay
+        QTimer.singleShot(1000, lambda: self.set_state(self.STATE_NORMAL))
+    
+    def on_recording_stopped(self):
+        """Handle recording stopped"""
+        print("[TARS Display] Recording stopped")
+    
+    def on_audio_error(self, error):
+        """Handle audio errors"""
+        print(f"[TARS Display] Audio error: {error}")
+        self.append_message(f"[TARS Audio] {error}")
+        self.set_state(self.STATE_NORMAL)
+    
+    def set_state(self, state):
+        """Change display state"""
+        if state == self.state:
+            return
+        
+        print(f"[TARS Display] State: {self.state} -> {state}")
+        self.state = state
+        
+        if state == self.STATE_NORMAL:
+            # Show conversation view
+            self.stack.setCurrentIndex(0)
+            if AUDIO_AVAILABLE and hasattr(self, 'visualizer'):
+                self.visualizer.stop()
+            self.input_line.setEnabled(True)
+            
+        elif state == self.STATE_LISTENING:
+            # Show listening view
+            self.stack.setCurrentIndex(1)
+            if AUDIO_AVAILABLE and hasattr(self, 'visualizer'):
+                self.visualizer.start()
+            self.transcription_label.setText("Listening...")
+            self.instruction_label.setText("💬 Speak now (pause to finish)")
+            self.input_line.setEnabled(False)
+            
+        elif state == self.STATE_PROCESSING:
+            # Update listening view to show processing
+            self.stack.setCurrentIndex(1)
+            if AUDIO_AVAILABLE and hasattr(self, 'visualizer'):
+                self.visualizer.stop()
+            self.transcription_label.setText("Processing...")
+            self.instruction_label.setText("🤖 Thinking...")
         
     def append_message(self, text):
         """Append a message to the display"""
@@ -213,6 +390,14 @@ class TarsDisplay(QMainWindow):
         if hasattr(self, 'socket_thread'):
             self.socket_thread.stop()
             self.socket_thread.wait()
+        
+        if AUDIO_AVAILABLE:
+            if hasattr(self, 'wake_detector'):
+                self.wake_detector.stop()
+            if hasattr(self, 'audio_recorder') and self.audio_recorder.isRunning():
+                self.audio_recorder.stop_recording()
+                self.audio_recorder.wait()
+        
         event.accept()
 
 
