@@ -11,16 +11,6 @@ const meta = getChatChannelMeta("tars-channel");
 // Global server instance
 let tarsServer: TarsServer | null = null;
 
-// Minimal config schema for now
-const TarsChannelConfigSchema = {
-  type: "object" as const,
-  additionalProperties: false,
-  properties: {
-    enabled: { type: "boolean" as const },
-    port: { type: "number" as const, default: 3030 },
-  },
-};
-
 export const tarsChannelPlugin: ChannelPlugin = {
   id: "tars-channel",
   meta: {
@@ -38,7 +28,7 @@ export const tarsChannelPlugin: ChannelPlugin = {
     blockStreamingCoalesceDefaults: { minChars: 100, idleMs: 500 },
   },
   reload: { configPrefixes: ["channels.tars-channel"] },
-  configSchema: buildChannelConfigSchema(TarsChannelConfigSchema),
+  configSchema: null,
   config: {
     listAccountIds: () => [DEFAULT_ACCOUNT_ID],
     resolveAccount: (cfg) => ({
