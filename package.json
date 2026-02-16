@@ -1,0 +1,14 @@
+{
+  "name": "@openclaw/tui",
+  "version": "0.1.0",
+  "description": "OpenClaw Terminal UI channel plugin",
+  "type": "module",
+  "devDependencies": {
+    "openclaw": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

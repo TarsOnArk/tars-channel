@@ -1,0 +1,9 @@
+{
+  "id": "tui",
+  "channels": ["tui"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
