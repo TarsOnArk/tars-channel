@@ -58,6 +58,7 @@ export class TarsServer {
 
         // Handle incoming messages from display
         socket.on("data", (data) => {
+          this.logger?.info?.(`[tars-channel] Received ${data.length} bytes of data`);
           buffer += data.toString();
           
           // Process complete messages (newline-delimited JSON)
@@ -68,14 +69,19 @@ export class TarsServer {
             
             if (!line.trim()) continue;
             
+            this.logger?.info?.(`[tars-channel] Processing line: ${line.substring(0, 100)}`);
             try {
               const msg = JSON.parse(line);
+              this.logger?.info?.(`[tars-channel] Parsed message type: ${msg.type}`);
               if (msg.type === "input" && msg.text && this.onMessage) {
-                this.logger?.info?.(`[tars-channel] Received input from display`);
+                this.logger?.info?.(`[tars-channel] Received input from display: "${msg.text.substring(0, 50)}..."`);
                 this.onMessage(msg.text);
+              } else {
+                this.logger?.warn?.(`[tars-channel] Message not processed: type=${msg.type}, hasText=${!!msg.text}, hasCallback=${!!this.onMessage}`);
               }
             } catch (err) {
-              this.logger?.warn?.(`[tars-channel] Invalid message from display: ${line}`);
+              this.logger?.error?.(`[tars-channel] Error processing message: ${err instanceof Error ? err.message : String(err)}`);
+              this.logger?.error?.(`[tars-channel] Stack: ${err instanceof Error ? err.stack : 'no stack'}`);
             }
           }
         });
@@ -98,22 +104,33 @@ export class TarsServer {
   async stop(): Promise<void> {
     // Close all client connections
     for (const client of this.clients) {
-      client.destroy();
+      try {
+        client.destroy();
+      } catch (err) {
+        // Ignore errors when destroying clients
+      }
     }
     this.clients.clear();
 
     // Close server
     if (this.server) {
-      return new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         this.server!.close(() => {
           this.logger?.info?.(`[tars-channel] Server stopped`);
-          // Clean up socket file
-          if (fs.existsSync(this.socketPath)) {
-            fs.unlinkSync(this.socketPath);
-          }
           resolve();
         });
       });
+      this.server = null;
+    }
+    
+    // Always clean up socket file (even if server was already stopped)
+    if (fs.existsSync(this.socketPath)) {
+      try {
+        fs.unlinkSync(this.socketPath);
+        this.logger?.info?.(`[tars-channel] Cleaned up socket file`);
+      } catch (err) {
+        this.logger?.warn?.(`[tars-channel] Failed to clean socket: ${err}`);
+      }
     }
   }
 

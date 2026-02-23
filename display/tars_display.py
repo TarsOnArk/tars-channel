@@ -2,6 +2,9 @@
 """
 TARS Display - Native PyQt5 interface for TARS embodiment with voice input
 """
+print("=" * 60, flush=True)
+print("TARS DISPLAY STARTING - DEBUG MODE", flush=True)
+print("=" * 60, flush=True)
 import sys
 import socket
 import os
@@ -39,32 +42,38 @@ class SocketListener(QThread):
         
     def run(self):
         """Connect to Unix socket and listen for messages"""
+        print(f"[SocketListener] Thread started, running={self.running}", flush=True)
         while self.running:
             try:
                 # Connect to OpenClaw's Unix socket
+                print(f"[SocketListener] Attempting to connect to {self.socket_path}", flush=True)
                 self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 self.sock.connect(self.socket_path)
-                print(f"[TARS Display] Connected to {self.socket_path}")
+                print(f"[SocketListener] Connected to {self.socket_path}", flush=True)
                 self.connected.emit(True)
                 
                 buffer = ""
                 while self.running:
                     data = self.sock.recv(4096)
                     if not data:
+                        print(f"[SocketListener] Connection closed (no data)", flush=True)
                         break
-                        
+                    
+                    print(f"[SocketListener] Received {len(data)} bytes", flush=True)    
                     buffer += data.decode('utf-8')
                     
                     # Process complete JSON messages (newline-delimited)
                     while '\n' in buffer:
                         line, buffer = buffer.split('\n', 1)
                         if line.strip():
+                            print(f"[SocketListener] Processing line: {line[:100]}", flush=True)
                             try:
                                 msg = json.loads(line)
                                 if msg.get('type') == 'message':
+                                    print(f"[SocketListener] Emitting message: {msg.get('text', '')[:50]}", flush=True)
                                     self.message_received.emit(msg.get('text', ''))
                             except json.JSONDecodeError:
-                                print(f"[TARS Display] Invalid JSON: {line}")
+                                print(f"[SocketListener] Invalid JSON: {line}", flush=True)
                 
                 self.sock.close()
                 self.sock = None
@@ -247,10 +256,12 @@ class TarsDisplay(QMainWindow):
         
     def init_socket(self):
         """Initialize socket listener"""
+        print(f"[TARS Display] Starting socket listener for {self.socket_path}", flush=True)
         self.socket_thread = SocketListener(self.socket_path)
         self.socket_thread.message_received.connect(self.append_message)
         self.socket_thread.connected.connect(self.on_connection_changed)
         self.socket_thread.start()
+        print(f"[TARS Display] Socket listener thread started", flush=True)
     
     def init_audio(self):
         """Initialize audio components"""
@@ -408,8 +419,9 @@ class TarsDisplay(QMainWindow):
 
 def main():
     """Main entry point"""
-    # Socket path (same as OpenClaw will create)
-    socket_path = "/tmp/tars-channel.sock"
+    # Socket path (same as OpenClaw will create, or override via CLI arg)
+    socket_path = sys.argv[1] if len(sys.argv) > 1 else "/tmp/tars-channel.sock"
+    print(f"[TARS Display] Using socket: {socket_path}", flush=True)
     
     # Create Qt application
     app = QApplication(sys.argv)

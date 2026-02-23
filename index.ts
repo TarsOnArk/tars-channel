@@ -1,6 +1,7 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type { ChannelPlugin, OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
 import { tarsChannelPlugin } from "./src/channel.js";
+import { setTarsRuntime } from "./src/runtime.js";
 
 const plugin = {
   id: "tars-channel",
@@ -8,7 +9,8 @@ const plugin = {
   description: "TARS custom channel plugin",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
-    api.registerChannel({ plugin: tarsChannelPlugin });
+    setTarsRuntime(api.runtime);
+    api.registerChannel({ plugin: tarsChannelPlugin as ChannelPlugin });
   },
 };
 
